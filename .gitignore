@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store

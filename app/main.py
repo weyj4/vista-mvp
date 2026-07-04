@@ -11,6 +11,11 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    if os.environ.get("LANGSMITH_TRACING", "").lower() == "true":
+        logging.getLogger(__name__).info(
+            "langsmith tracing enabled project=%s",
+            os.environ.get("LANGSMITH_PROJECT", "default"),
+        )
     uvicorn.run(
         "app.server:app",
         host="0.0.0.0",

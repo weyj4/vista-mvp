@@ -26,7 +26,13 @@ def quote(body: QuoteRequestInput) -> JSONResponse:
             raw_request=body,
             status="running",
         )
-        result = graph_app.invoke(initial)
+        result = graph_app.invoke(
+            initial,
+            config={
+                "run_name": f"quote:{body.request_id}",
+                "metadata": {"request_id": body.request_id},
+            },
+        )
         final = QuoteState.model_validate(result) if isinstance(result, dict) else result
         return JSONResponse(final.model_dump(by_alias=True))
     except Exception as exc:

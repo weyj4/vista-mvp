@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import operator
 from enum import Enum
-from typing import Any, Generic, Optional, TypeVar
+from typing import Annotated, Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -72,6 +73,5 @@ class QuoteState(BaseModel):
     validation: Optional[ValidationResult] = None
     quote: Optional[Quote] = None
     status: str = "running"
-    # TODO(v0): make append-only via Annotated[list[str], operator.add] once
-    # we start writing errors; last-write-wins is fine while no node touches it.
-    errors: list[str] = Field(default_factory=list)
+    # Append reducer: each node's `errors` list is concatenated (audit log).
+    errors: Annotated[list[str], operator.add] = Field(default_factory=list)

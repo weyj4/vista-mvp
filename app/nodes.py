@@ -4,7 +4,6 @@ import hashlib
 import logging
 
 from app.state import (
-    Dimensions,
     Enrichment,
     ExtractedField,
     FieldStatus,
@@ -17,12 +16,23 @@ from app.state import (
 log = logging.getLogger(__name__)
 
 
-def _stub_field(value):
+def _missing_field() -> ExtractedField:
     return ExtractedField(
-        value=value,
-        confidence=1.0,
-        source="stub",
-        status=FieldStatus.extracted,
+        value=None,
+        confidence=0.0,
+        source=None,
+        status=FieldStatus.missing,
+    )
+
+
+def _all_missing_spec() -> QuoteSpec:
+    return QuoteSpec(
+        dimensions=_missing_field(),
+        box_style=_missing_field(),
+        board_grade=_missing_field(),
+        print_spec=_missing_field(),
+        quantity=_missing_field(),
+        logistics=_missing_field(),
     )
 
 
@@ -34,16 +44,38 @@ def ingest(state: QuoteState) -> dict:
 
 
 def extract(state: QuoteState) -> dict:
-    spec = QuoteSpec(
-        dimensions=_stub_field(Dimensions(length=12, width=10, depth=8)),
-        box_style=_stub_field("RSC"),
-        board_grade=_stub_field("32 ECT"),
-        print_spec=_stub_field("1 color"),
-        quantity=_stub_field(5000),
-        logistics=_stub_field("FOB origin"),
-    )
-    log.info("[extract] stub spec produced")
-    return {"spec": spec}
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    from app.extraction import EXTRACTION_SYSTEM_PROMPT, to_quote_spec
+    from app.llm import get_extractor
+
+    email = state.raw_request.body if state.raw_request else ""
+    try:
+        extractor = get_extractor()
+        result = extractor.invoke(
+            [
+                SystemMessage(content=EXTRACTION_SYSTEM_PROMPT),
+                HumanMessage(content=email),
+            ]
+        )
+        spec = to_quote_spec(result)
+        extracted_count = sum(
+            1
+            for f in (
+                spec.dimensions,
+                spec.box_style,
+                spec.board_grade,
+                spec.print_spec,
+                spec.quantity,
+                spec.logistics,
+            )
+            if f.status == FieldStatus.extracted
+        )
+        log.info("[extract] extracted=%d/6", extracted_count)
+        return {"spec": spec}
+    except Exception as exc:
+        log.exception("[extract] failed, degrading to all-missing")
+        return {"spec": _all_missing_spec(), "errors": [f"extract: {exc}"]}
 
 
 def enrich(state: QuoteState) -> dict:
